@@ -12,8 +12,7 @@ if(NOT cppfront_POPULATED)
 endif()
 
 add_library(cppfront_header INTERFACE)
-target_include_directories(cppfront_header
-                           INTERFACE ${cppfront_SOURCE_DIR}/include)
+target_include_directories(cppfront_header INTERFACE ${cppfront_SOURCE_DIR}/include)
 
 add_executable(cppfront ${cppfront_SOURCE_DIR}/source/cppfront.cpp)
 target_include_directories(cppfront PRIVATE ${cppfront_SOURCE_DIR}/source)
@@ -23,17 +22,17 @@ message(STATUS "cppfront binary: ${CPPFRONT_BINARY}")
 
 set(CPPFRONT_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 
-#
 # transpile c++2 to c++ then compile
-#
 function(cppfront_compile NAME)
-  cmake_parse_arguments(ARGS "INCLUDE_ALL_STD" ""
-                        "SOURCES;DEPENDS;COMPILE_FLAGS;LINK_FLAGS" ${ARGN})
+  cmake_parse_arguments(
+    ARGS 
+    "INCLUDE_ALL_STD" 
+    ""
+    "SOURCES;DEPENDS;COMPILE_FLAGS;LINK_FLAGS" 
+    ${ARGN})
 
   if(ARGS_UNPARSED_ARGUMENTS)
-    message(
-      FATAL_ERROR
-        "cppfront_compile: Unrecognized arguments: ${ARGS_UNPARSED_ARGUMENTS}")
+    message(FATAL_ERROR "cppfront_compile: Unrecognized arguments: ${ARGS_UNPARSED_ARGUMENTS}")
   endif()
 
   message(STATUS "[cppfront_compile] sources: ${ARGS_SOURCES}")
@@ -58,13 +57,14 @@ function(cppfront_compile NAME)
         FATAL_ERROR "cppfront_compile: Unknown source extension: ${SOURCE}")
     endif()
 
+    file(MAKE_DIRECTORY ${CPPFRONT_GENERATED_DIR})
+
     set(GENERATED_SOURCE ${CPPFRONT_GENERATED_DIR}/${SOURCE_NAME}${SOURCE_EXT})
     file(REAL_PATH ${SOURCE} SOURCE_REALPATH)
 
     add_custom_command(
-      OUTPUT ${GENERATED_SOURCE}
-      COMMAND ${CPPFRONT_BINARY} ${CPPFRONT_BINARY_FLAG} ${SOURCE_REALPATH} -o
-              ${GENERATED_SOURCE}
+      OUTPUT  ${GENERATED_SOURCE}
+      COMMAND ${CPPFRONT_BINARY} ${CPPFRONT_BINARY_FLAG} ${SOURCE_REALPATH} -o ${GENERATED_SOURCE}
       DEPENDS ${CPPFRONT_BINARY} ${SOURCE_REALPATH} ${ARGS_DEPENDS})
 
     list(APPEND GENERATED_SOURCES ${GENERATED_SOURCE})
