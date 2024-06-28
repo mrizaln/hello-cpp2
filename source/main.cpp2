@@ -1,0 +1,761 @@
+// vi: set ft=cpp2:
+
+// from secret-string library
+#include <secret_string.hpp>
+
+// for some reason this include is missed on -include-std flag
+#include <set>
+
+#define SEE_BUILD_FLAG 1
+
+// bringin UDL to scope
+using secret_string::operator""_secret;
+
+// aliases
+sr: namespace == std::ranges;
+sv: namespace == std::views;
+
+common: namespace = {
+    main: (args: cpp2::args_t) = {
+        println("There are (args.argc)$ number of args");
+        for args do (arg) {
+            println(arg);
+        }
+        println("");
+
+        lists();
+        ufcs();
+        literals();
+        operators();
+    }
+
+    lists: () = {
+        names: std::vector = ("Maiuna", "Aleis", "Lessertia",);     // trailing comma
+        for names do (name) {
+            hello(name);
+        }
+        println("");
+    }
+
+    ufcs: () = {
+        // good-old UDL
+        secret := "A very secret string literal"_secret;
+        println("Obfuscated  : (secret.view())$");
+        println("Deobfusacted: (secret.read())$");
+
+        // UFCS
+        "someone".hello();
+    }
+
+    literals: () = {
+        x: i32 = 13323;         // int
+        y: double = 2347.3;     // no f64 or something
+    }
+
+    operators: () = {
+        // unary prefix (just these)
+        x := -42;
+        y := +12;
+        z := !true;
+
+        // unary postfix (other else)
+        everything := 42;
+        address := everything&;      // addressof
+        answer  := address*;        // deref
+
+        // binary operators are still the same
+        anded := x & y;
+
+        // unary suffix operators must not be preceded by whitespace; when `*`, `&`, and `~`
+        // are used as binary operators they must be preceded by whitespace
+        result := address* * 100;
+    }
+
+    hello: (msg: std::string_view) = println("Hello (msg)$");
+}
+
+
+expressions: namespace = {
+    main: () = {
+        moreUfcs();
+        typeAndValueQueries();
+        castsAndConversions();
+        patternMatching(42);
+        captures();
+    }
+
+    moreUfcs: () = {
+        myfile := fopen("something.txt", "w");
+        _ = myfile.fprintf("This is printed at: %s\n", __TIME__);
+        _ = myfile.fclose();
+    }
+
+    typeAndValueQueries: () = {
+        // query is done using the keyword `is`
+
+        value := 42;
+        isInt := value is i32;
+
+        println("(value)$ == 42: (value is 42)$");
+        println("is i32: (isInt)$");
+
+        vec: std::vector = (1, 2, 3, 4, 5, 6,);
+        println("is vector: (vec is std::vector)$");
+
+        // println("is integral: (value is std::integral)$");      // 2024-04-04: not working
+    }
+
+    castsAndConversions: () = {
+        test := :(x) println(inspect x -> std::string {
+            is 0           = "zero";
+            is std::string = x as std::string;
+            is _           = "(no match)";
+        });
+
+        // casts are done using the keyword `as`
+        a: std::any = 0;
+        a.test();
+        a = "plugh" as std::string;
+        a.test();
+        test("asdfkjhadskjfh" as std::string);
+    }
+
+    patternMatching: (x) = {
+        // syntax: `inspect <expr> -> <type> { <pattern> = <expr>; ... }`
+        // - expr is evaluated once
+        // - pattern is in the form of `is <C>`. it is evaluated as if called with `expr is <C>`
+        // - a catch all `is _` is required
+
+        everything := 42;
+        println(inspect x -> std::string {
+            is 0            = "zero";
+            is (everything) = "the answer";
+            is int          = "integer";
+            is std::string  = x as std::string;
+            is std::vector  = "a std::vector";
+            is _            = "(no match)";
+        });
+    }
+
+    captures: () = {
+        s := "-ish";
+        vec: std::vector = (1, 1, 2, 3, 5, 8, 13, 21, 34);
+        sr::for_each(
+            vec,
+            :(i) println("(i)$(s$)$"),    // s is captured here by lambda and then by string interpolation
+        );
+    }
+}
+
+declarations: namespace = {
+    // all cpp2 declarations are written as `<name> : <kind> = <statement>`.
+    // so, most of the things are already introduced in the previous examples.
+
+    // full syntax of a declaration is:
+    // <name> [...] : [<template-params>] <kind> [<requires-constraints>] = <statement>
+
+    // a class declaration/definition
+    Array: <T, size: u64> type = {
+        public data: std::array<T, size>;
+
+        // ...
+
+        public print: (this) = {
+            for this.data do (x) {
+                print(x);
+            }
+            println("");
+        }
+    }
+
+    // class alias
+    Vec3: <T> type == Array<T, 3>;
+
+    // function alias (constexpr function)
+    square: (x: i32) -> i32 == x * x;
+
+    // object alias (constexpr object)
+    bufferSize: i32 == 1'000'000;
+
+    main: () = {
+        unnamedDeclarationExpressions();
+        somePrint(std::cout, "Hello", " ", "World", "!", "\n");
+    }
+
+    unnamedDeclarationExpressions: () = {
+        :std::vector = (1, 2, 3, 4, 5, 6,);
+        :(x) println(x);                      // unnamed function (lambda)
+    }
+
+    somePrint: <Args...>(inout out: std::ostream, args...: Args)
+        requires sizeof...(Args) >= 1u
+    = {
+        (out << ... << args);
+    }
+}
+
+objects_init_and_memory: namespace = {
+    main: () = {
+        // very object must be initialized using `=` before it is used
+        separateInit();
+        _ = heapObjects();
+    }
+
+    Shape: <T> type = {
+        Point2d: type == std::array<T, 2>;
+
+        points: std::vector<Point2d> = ();
+
+        draw: (this) -> bool = {
+            // ...
+            _ = this.points.ssize();
+            // ...
+            return true;
+        }
+    }
+
+    separateInit: () = {
+        buf: std::array<int, 4>;   // uninitialized (reserve stack space)
+
+        std::srand(std::time(nullptr));
+        if std::rand() % 2 == 0 {
+            buf = (1, 2, 3, 4);     // construct
+        } else {
+            buf = (4, 3, 2, 1);     // construct
+        }
+
+        for buf do (e) {
+            print("(e)$, ");
+        }
+        print("\n");
+    }
+
+    heapObjects: () -> std::shared_ptr<Shape<i32>> = {
+        // objects can be allocated on the heap using `<arena>.new<T>(<init-args>)`
+        // arenas:
+        // - unique -> std::unique_ptr (default)
+        // - shared -> std::shared_ptr
+        vec := new<std::vector<i32>>(1, 2, 3, 4, 5);
+        println("vec size: (vec*.ssize())$");           // note that the deref is a suffix operator
+
+        storeACopy := :(copy thing) = {
+            // ...
+        };
+
+        shape := shared.new<Shape<i32>>();
+        storeACopy(shape);
+        return shape;
+    }
+}
+
+program_flow: namespace = {
+    main: () = {
+        functions();
+        functionsNamedReturn();
+        controlFlow();
+    }
+
+    functions: () = {
+        // six ways to pass parameters to a function
+        // - `in` (default) -> const X or const X& (depends on the size of X)
+        // - `copy`         -> X
+        // - `inout`        -> X&
+        // - `out`          -> X& (must be assigned to; cpp2::impl::out<X>)
+        // - `move`         -> X&&
+        // - `forward`      -> template <typename T> T&& (constrained to type X)
+
+        // NOTE: all parameters and other objects in cpp2 are `const` by default, except for local variables
+
+        appendXtoY := :(x: i32, inout y: std::string) = y += std::to_string(x);
+
+        x := 42;
+        y := "The answer is " as std::string;
+        x.appendXtoY(y);
+        y.println();
+
+        wrapF := :(forward x) x();
+        wrapF(:() println("Hello, World!"));
+    }
+
+    functionsNamedReturn: () = {
+        // used for multiple return values
+        div := divide(11, 5);
+        println("divide result = quot: (div.quotient)$ | rem: (div.remainder)$");
+
+        useInserted := :(move iter) println("(iter*)$");
+
+        m: Set<std::string> = ();
+        ret := m.insert("set insert");
+        if ret.inserted {
+            useInserted(ret.where);
+        }
+        assert(m.ssize() == 1);
+    }
+
+    controlFlow: () = {
+        // `if-else` is just like in c++ except the parens are not needed and braces are required
+        // `for`, `while`, `do` also like above, except there are differences
+
+        names: std::vector<std::string> = ("Maiuna", "Lessertia");
+        i := 0;
+
+        while i < names.ssize() next i++ { println("name: (names[i])$"); }
+        do { println("something: (i)$"); } next i-- while i > 0;
+
+        for names next i++ do (inout name) {
+            name = "[(name)$]";
+            println("counter: (i)$, name: (name)$");
+        }
+
+        // filter using if
+        i = 0;
+        for names next i++ do (name) if i % 2 == 1 {
+            println("counter: (i)$, name: (name)$");
+        }
+
+        // loop names, `break` and `continue`
+        numbers: std::vector = (2, 3, 5, 7, 11, 13);
+        i = 0;
+        outer: while i < numbers.ssize() next i++ {
+            j := i;
+            inner: while j <= i next j++ {
+                num := numbers[(i + j) % numbers.ssize()];
+                println("number: (num)$");
+
+                if (i + j) % 2 == 0 {
+                    continue inner;
+                }
+                if (i + j) % 3 == 0 {
+                    break outer;
+                }
+            }
+        }
+    }
+
+    // currently cannot be declared as unnamed function (lamdbda) (2024/04/05)
+    divide: (dividend: i32, divisor: i32) -> (quotient: i32, remainder: i32) = {
+        if divisor == 0 {
+            quotient = 0;
+            remainder = 0;
+        } else {
+            quotient = dividend / divisor;
+            remainder = dividend % divisor;
+        }
+    }
+
+    Set: <Key> type = {
+        Container: type == std::set<Key>;
+        Iterator : type == Container::iterator;
+
+        container: Container;
+
+        insert: (inout this, value: Key) -> (where: Iterator, inserted: bool) = {
+            setReturn := this.container.insert(value);
+            where    = setReturn.first;
+            inserted = setReturn.second;
+        }
+
+        ssize: (this) -> i64 = std::ssize(container);   // for some reason UFCS is not working here
+    }
+}
+
+contracts: namespace = {
+    // there are three contracts:
+    // - preconditions
+    // - postconditions
+    // - assertions
+
+    // `kind<group, pred1, pred2, ...>(condition [, message])`      kind: pre/post/assert
+
+    // evaluation order:
+    // - predicates             false -> stop
+    // - `group.is_active()`    false -> stop
+    // - `condition`            true  -> stop
+    // - if all predicates were true and the group is active and the condition was false
+    //                                -> `group.report_violation()` is called
+
+    // contract groups are useful to enable or disable or set custom handlers independently
+    // for different group of contracts.
+    // a contact group `grp` is just the name of an object that can be called with
+    // - `grp.report_violation()` and `grp.report_violation(message)`   [message is const char*]
+    // - `grp.is_active()` which returns `true` if and only if the group is enabled
+
+    // `cpp2::contract_group` and customizable violation handling
+    // ...
+    // TODO: continue from here
+
+    main: () = {
+        contractPredicates();
+    }
+
+    contractPredicates: () = {
+        is_checked_build: bool == SEE_BUILD_FLAG;                   // static  (compile-time) predicate
+        checking_enabled: bool = /* something something */ true;    // dynamic (run-time)     predicate
+
+        audit: cpp2::contract_group = ();
+
+        assert<audit, is_checked_build, checking_enabled>(true);
+        println("contract passed");
+    }
+
+    insertAt: (container, where: int, val: int)
+        pre<bounds_safety>(0 <= where <= container.ssize(), "position (where)$ is outside 'container'")
+        post              (container.ssize() == container.ssize()$ + 1)     // captures prev value
+    = {
+        _ = container.insert(container.begin() + where, val);
+    }
+}
+
+types_and_inheritance: namespace = {
+    main: () = {
+        inheritance();
+        ctorDtorEtc();
+        comparison();
+    }
+
+    // 1.
+    // keyword `this` is a synonym for the current object.
+
+    // `this` is not a pointer (some kind of reference instead).
+    // inside the scope of a type that has a member named `member`, `member` by default means `this.member`.
+    // the name `this` may only be used for the first parameter of a type-scope function.
+    // it is never declared with an explicit `: its_type` (because it's always the current type).
+
+    // `this` can be used in parameter as
+    // - `in` (default)     -> _ f(...) const { ... }
+    // - `inout`            -> _ f(...) { ... }
+    // - `out`              -> constructor
+    // - `move`             -> _ f(...) && { ... }
+    //                      -> destructor if there are not additional parameters
+
+    MyType: type = {
+        // data members are private by default
+        x: std::string;
+
+        // functions are public by default
+        print: (this, msg: std::string_view) = println("(x)$: (msg)$");     // `x` is shorthand for `this.x`
+
+        protected f: (this) = println("f");
+    }
+
+    // 2.
+    inheritance: () = {
+        // base types are written as members named `this`
+
+        // `virtual`, `override`, and `final` can be added as specifier to the `this` parameter
+        // - `myfunc: (virtual  this /* ... */) = ...` defines a virtual function
+        // - `myfunc: (override this /* ... */) = ...` overrides a virtual function
+        // - `myfunc: (final    this /* ... */) = ...` defines final override
+
+        derived: Derived = ();
+        base: *AbstractBase = derived&;
+        base*.print("hi from base");
+    }
+
+    AbstractBase: type = {
+        print: (virtual this, msg: std::string);    // pure virtual function
+    }
+
+    Derived: type = {
+        this: AbstractBase;     // inheritance
+
+        print: (override this, msg: std::string) = println("(msg)$");
+    }
+
+    // 3.
+    // A `this`` parameter of an `operator=` function can be declared as `implicit`:
+
+    // writing `operator=: (implicit out this, /* ... */) = ...` defines a function that will not be marked
+    //     as `explicit` when lowered to cpp1 syntax
+
+    // 4.
+    // `operator=` - construction, assignment, and destruction
+
+    // - `out this`         -> both a constructor and aassignment operator
+    // - `inout this`       -> an assignment operator only (inout requires an initialized modifiable argument)
+    // - `move this`        -> the destructor
+
+    // 5.
+    // `that` - a source parameter
+
+    // all type-scope functions can have a `that` parameter as their second parameter, which is a synonym
+    // for the object to be copied/moved from.
+    // `that` can be an `in` (default) or `move`
+    // - `in that`          -> both copy and move function (it can accept both lvalues and rvalues)
+    // - `move that`        -> move function only
+
+    // `operator=: (out this, that)` is the most general form of `oeprator=`
+    // `operator=` can generalize assignment from construction, and move from copy
+
+    // 6.
+    // minimal functions are generated by default for a type:
+    // - destructor         (public non-virtual)
+    // - if no `operator=` functions other than the destructor are written, a public default constructor is generated
+
+    // 7.
+    // memberwise by default
+
+    // in a hand-written `operator=`:
+    // - the body must begin with a series of `member = value;` statements  (including base) in declaration order
+    // - if the body does not mention a member in the appropriate place in the beginning section, by default
+    //   the member's default initializer is used
+
+    MyType2: type = {
+        name        : std::string;
+        socialHandle: std::string = "(unknown)";
+
+        // conversion from string
+        operator=: (out this, who: std::string) = {
+            name = who;     // or `this.name = who;`
+            // `socialHandle` not mentioned, default initializer is used
+
+            print();
+        }
+
+        // copy/move constructor/assignment
+        operator=: (out this, that) = {
+            // if neither data member is mentioned, defaults to:
+            //      name = that.name;
+            //      socialHandle = that.socialHandle;
+
+            print();
+        }
+
+        print: (this) = println("value is [(name)$] [(socialHandle)$]");
+    }
+
+    ctorDtorEtc: () = {
+        someone: MyType2 = "shu";       // construct from string
+        someone = "ines";               // assign from string
+
+        other := someone;               // copy construct
+        other  = someone;               // copy assign
+
+        third := (move someone);        // move construct
+        third  = (move other);          // move assign
+
+        someone.print();                // "value is [] []" (moved from)
+        other.print();                  // "value is [] []" (moved from)
+    }
+
+    // 8.
+    // `operator<=>` - unified comparison
+
+    // to write comparison functions for your type, usually you jest need to write either or both of
+    // `operator<=>` and `operator==` with a first parameter of `this` and a second parameter of any type.
+    // if you omit the function body, a memberwise comparison is generated
+
+    // `operator<=>` must return one of
+    // - `std::strong_ordering`         (prefer this unless you have a reason not to)
+    // - `std::weak_ordering`
+    // - `std::partial_ordering`
+
+    // if you write `operator<=>` without a custom body, `operator==` is generated for you
+
+    Item: type = {
+        public x: i32         = ();
+        public y: std::string = ();
+
+        operator=: (out this, v: i32, s: std::string) = {
+            this.x = v;
+            this.y = s;
+        }
+
+        operator<=>: (this, that) -> std::strong_ordering;
+        // memberwise by default
+    }
+
+    comparison: () = {
+        a: Item = (1, "one");
+        b: Item = (1, "hiji");
+
+        if a != b {                     // ok
+            println("(a.y)$ != (b.y)$");
+        }
+
+        x := 1;
+        y := 2;
+        z := 3;
+
+        // btw this comparison chain is allowed in cpp2 (only transitive comparison)
+        if x < y < z {
+            println("x < y < z");
+        }
+    }
+
+    // NOTE: this write-up omit many details. see more in the cpp2 documentation
+}
+
+metafunctions: namespace = {
+    main: () = {
+        useNameOrNumber();
+    }
+
+    // a metafunction is a compile-time function that can participate in interpreting the meaning of a
+    // declaration, and can:
+    // - apply defaults
+    // - enforce constraints
+    // - generate additional functions and other code
+
+    // apply metafunctions using `@`
+
+    Point2d: @value type = {
+        x: i32 = 0;
+        y: i32 = 0;
+
+        // @value automatically generates default/copy/move constructor/assignment
+        // and <=> strong_ordering comparison, and emits an error if you try to write a
+        // non-public destructor or any protected or virtual function
+    }
+
+    // a metafunction applied to a definition using `@` gets to participate in interpreting
+    // the meaning of the definition by inspecting and manipulating the definition's parse tree
+
+    Shape: @interface @print type = {
+        draw  : (this);
+        moveBy: (this, dx: double, dy: double);
+
+        // @print metafunction will pretty-print the resulting parse tree as source code to the console
+    }
+
+    // built-in metafunctions
+    // - for regular value-like types (copyable, comparable)
+    //   - @ordered
+    //   - @weakly_ordered
+    //   - @partially_ordered
+    //   - @copyable                -> type has (copy and move) x (constructor and assignment)
+    //   - @basic_value             -> regular type: copyable, default constructible, not polymorphic
+    //   - @value                   -> basic_value that is also ordered (strongly)
+    //   - @weakly_ordered_value                                        (weakly)
+    //   - @partially_ordered_value                                     (partially)
+    //   - @struct                  -> a type with only public bases, objects, and functions, with no virtual
+    //                                 functions, and no user-defined constructors or assignment or destructors
+    //
+    // - for polymorphic types
+    //   - @interface           -> type is an abstract base class having only pure virtual functions
+    //   - @polymorphic_base    -> pure polymorphic base type that is not copyable, and whose destructor is either
+    //                             public and virtual or protected and non-virtual. can have non-public and
+    //                             non-virtual functions
+    //
+    // - for enumeration types
+    //   - @enum                -> cpp2 has no enum feature, instead you use this @enum to create one
+    //   - @enum_flag           -> a variation on enum that has power-of-two default enumerator values
+    //
+    // - for dynamic types
+    //   - @union               -> safe discriminated union/variant dynamic type
+    //
+    // - helpers and utilities
+    //   - @cp1_rule_of_zero    -> type has no user-written copy/move/destructor functions, and for which
+    //                             cpp2 should generate nothing
+    //   - @print               -> prints a pretty-printed visualization of the type to the console
+
+    SkatGame: @enum<i16> @print type = {
+        diamonds := 9;
+        hearts;  // 10
+        spades;  // 11
+        clubs;   // 12
+        grand    := 20;
+        null     := 23;
+
+        // instead of enum as language feature, it's a metafunction that acts on a type.
+        // this makes 'enum' scoped and strongly typed, and allows it to have member functions
+    }
+
+    Janus: @enum type = {
+        past;
+        future;
+
+        // since 'enum' is just a type, it can have member functions (and other things type naturally have)
+        flip: (inout this) == {
+            if this == past { this = future; }
+            else            { this = past;   }
+        }
+    }
+
+    FileAttributes: @flag_enum<u8> @print type = {
+        cached;     // 1
+        current;    // 2
+        obsolete;   // 4
+        cached_and_current := cached | current;
+
+        // flag_enum starts at 1. 0 is reserved for `none` that will also be generated
+    }
+
+    NameOrNumber: @union @print type = {
+        name: std::string;
+        num : i32;
+    }
+
+    useNameOrNumber: () = {
+        non: NameOrNumber = ();
+
+        non.set_name("kazusa");             // set_<member> is generated
+        assert(non.is_name());              // is_<member>  is generated
+        println("name: (non.name())$");
+
+        // trying to use `non.num()` here would cause a Type safety contract violation
+        // _ = non.num();
+
+        non.set_num(42);                // now it's a number
+        println("num: (non.num())$");
+    }
+}
+
+namespaces: namespace = {
+    main: () = {
+        a: a_lib::AType = ();
+        a.print();
+
+        // a `using` statement brings names declared in other namespace into the current scope
+        using a_lib::AType;
+        aa: AType = (13, 42);
+        aa.print();
+
+        using namespace a_lib;          // semantically similar to using a_lib::*
+        aaa: AType = (3401, 34);
+        aaa.print();
+    }
+
+    // a namespace `N` can contain declarations that are then accessed by writing `N::` or `using` it
+    a_lib: namespace = {
+        AType: @struct @print type = {
+            x: i32 = 0;
+            y: i32 = 0;
+
+            print: (this) = println("x: (x)$, y: (y)$");
+        }
+
+    }
+}
+
+
+// templated functions
+print:   (s: _) = std::cout << s;
+println: (s: _) = std::cout << s << '\n';
+
+
+
+// args type can't be explicitly specified (it's always cpp2::args_t, acts like array<string_view>)
+main: (args) = {
+    // wrap call
+    call := :(name: std::string_view, f, args...) = {
+        sep     :== "=======================================";
+        sep_alt :== "---------------------------------------";
+        println(sep);
+        println("::(name)$");
+        println(sep_alt);
+        f(args...);
+        println(sep);
+        println("");
+    };
+
+    call("common", common::main, args);
+    call("expressions", expressions::main);
+    call("declarations", declarations::main);
+    call("objects_init_and_memory", objects_init_and_memory::main);
+    call("program_flow", program_flow::main);
+    call("contracts", contracts::main);
+    call("types_and_inheritance", types_and_inheritance::main);
+    call("metafunctions", metafunctions::main);
+    call("namespaces", namespaces::main);
+}
